@@ -1,0 +1,508 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>9-Cat 選秀作戰室</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: draft-room console. Status bar on top, recommendation + input on the left, board below, your roster on the right. */
+:root{
+  --bg:#f3f5f7; --panel:#ffffff; --line:#d9dee5; --fg:#16202b; --muted:#5b6774;
+  --accent:#1f5fbf; --accent-soft:#e3ecfa; --mine:#b8650a; --mine-soft:#fbefe0;
+  --good:#1c7a4a; --good-soft:#e2f3ea; --warn:#a6600a; --warn-soft:#fbefd9; --bad:#b3261e; --bad-soft:#fbe4e2;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"PingFang TC","Noto Sans TC",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f141a; --panel:#161d25; --line:#2a3440; --fg:#e4e9ef; --muted:#93a0ae;
+  --accent:#6b9eea; --accent-soft:#1c2a3e; --mine:#e9a04a; --mine-soft:#33260f;
+  --good:#5cc48c; --good-soft:#163024; --warn:#e6a54b; --warn-soft:#33270f; --bad:#ef7a72; --bad-soft:#3a1b19; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f141a; --panel:#161d25; --line:#2a3440; --fg:#e4e9ef; --muted:#93a0ae;
+  --accent:#6b9eea; --accent-soft:#1c2a3e; --mine:#e9a04a; --mine-soft:#33260f;
+  --good:#5cc48c; --good-soft:#163024; --warn:#e6a54b; --warn-soft:#33270f; --bad:#ef7a72; --bad-soft:#3a1b19; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:14px;line-height:1.45}
+.wrap{max-width:1280px;margin:0 auto;padding-block:16px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:14px}
+h1,h2{font-family:var(--display);font-weight:700;letter-spacing:.02em;margin:0;text-wrap:balance}
+h1{font-size:26px;line-height:1}
+h2{font-size:17px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+button,input,textarea,select{font:inherit;color:inherit}
+button{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--panel);font-weight:600}
+button.mine{background:var(--mine);border-color:var(--mine);color:var(--panel);font-weight:600}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input,textarea,select{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;display:grid;gap:10px;min-width:0}
+/* status bar */
+.status{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px}
+.status .clock{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:12.5px;border:1px solid var(--line);background:var(--panel);white-space:nowrap}
+.chip b{font-family:var(--mono);font-weight:500}
+.chip.turn{background:var(--mine-soft);border-color:var(--mine);color:var(--mine);font-weight:600}
+.chip.soon{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.status .tools{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:1fr}}
+.col{display:grid;gap:14px;min-width:0}
+/* entry */
+.entry{position:relative;display:flex;gap:8px;flex-wrap:wrap}
+.entry input{flex:1 1 220px;min-width:0;font-size:16px}
+.sugg{position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;z-index:5;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.sugg div{padding:8px 12px;display:flex;justify-content:space-between;gap:8px;cursor:pointer}
+.sugg div.on,.sugg div:hover{background:var(--accent-soft)}
+.sugg small{color:var(--muted)}
+.sugg div.gone{color:var(--muted);cursor:default;text-decoration:line-through}
+.sugg div.gone:hover{background:none}
+.sugg div.gone small{text-decoration:none}
+.hint{color:var(--muted);font-size:12.5px}
+.paste textarea{width:100%;min-height:90px;resize:vertical}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+/* recommendations */
+.rec-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.rec-head .big{font-family:var(--display);font-size:22px;font-weight:700}
+.recs{display:grid;gap:6px}
+.rec{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px}
+.rec.first{border-color:var(--mine);background:var(--mine-soft)}
+.rec .idx{font-family:var(--display);font-size:20px;font-weight:700;color:var(--muted);text-align:center}
+.rec.first .idx{color:var(--mine)}
+.rec .nm{font-weight:600}
+.rec .meta{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.tag{font-size:11.5px;border-radius:4px;padding:1px 6px;background:var(--bg);color:var(--muted);white-space:nowrap}
+.tag.go{background:var(--bad-soft);color:var(--bad)}
+.tag.half{background:var(--warn-soft);color:var(--warn)}
+.tag.wait{background:var(--good-soft);color:var(--good)}
+.tag.risk{background:var(--warn-soft);color:var(--warn)}
+.tag.fit{background:var(--accent-soft);color:var(--accent)}
+.pair{border:1px dashed var(--mine);border-radius:8px;padding:10px;background:var(--mine-soft)}
+.pair b{color:var(--mine)}
+/* board */
+.filters{display:flex;gap:8px;flex-wrap:wrap}
+.filters input{flex:1 1 160px;min-width:0}
+.tablewrap{overflow-x:auto;max-height:560px;overflow-y:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:var(--panel);font-weight:600;color:var(--muted);font-size:12px;cursor:pointer;z-index:1}
+td.r,th.r{text-align:right}
+tr:hover td{background:var(--accent-soft)}
+td .z{display:inline-block;min-width:34px;text-align:right;border-radius:3px;padding:0 3px}
+.zp2{background:var(--good-soft);color:var(--good);font-weight:600}.zp1{color:var(--good)}
+.zn1{color:var(--bad)}.zn2{background:var(--bad-soft);color:var(--bad);font-weight:600}
+td button{padding:2px 8px;font-size:12px}
+/* roster */
+.slots{display:grid;grid-template-columns:52px minmax(0,1fr);gap:4px 10px;align-items:center}
+.slots .s{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.slots .p{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slots .empty{color:var(--muted);font-style:italic}
+.bars{display:grid;gap:5px}
+.bar{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:8px;align-items:center;font-size:12px}
+.bar .track{height:8px;background:var(--bg);border-radius:4px;position:relative;overflow:hidden}
+.bar .track i{position:absolute;top:0;bottom:0;border-radius:4px}
+.bar .track::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--line)}
+.punts{display:flex;flex-wrap:wrap;gap:6px}
+.punts label{display:inline-flex;gap:4px;align-items:center;font-size:12.5px;border:1px solid var(--line);border-radius:999px;padding:2px 10px;cursor:pointer}
+.punts input{margin:0}
+.log{display:grid;gap:2px;max-height:300px;overflow-y:auto;font-size:13px}
+.log div{display:grid;grid-template-columns:42px 52px minmax(0,1fr) auto;gap:6px;align-items:center;padding:3px 4px;border-radius:4px}
+.log div.editing{outline:2px solid var(--accent)}
+.log .acts{display:flex;gap:4px}
+.log .acts button{padding:1px 7px;font-size:11.5px}
+.editbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-radius:8px;padding:8px 12px;background:var(--accent-soft);color:var(--accent);font-size:13px}
+.log div.me{background:var(--mine-soft);color:var(--mine);font-weight:600}
+.log .t{color:var(--muted)}
+.settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.settings label{display:grid;gap:4px;font-size:12.5px;color:var(--muted)}
+.notice{border-radius:8px;padding:8px 12px;background:var(--warn-soft);color:var(--warn);font-size:13px}
+.ok{background:var(--good-soft);color:var(--good)}
+@media (prefers-reduced-motion:no-preference){.rec,.chip{transition:background .2s,border-color .2s}}
+</style>
+
+<div class="wrap">
+  <div class="status">
+    <h1>9-Cat 選秀作戰室</h1>
+    <div class="clock" id="clock"></div>
+    <div class="tools">
+      <button id="undo" type="button">復原上一手</button>
+      <button id="toggleSettings" type="button">聯盟設定</button>
+    </div>
+  </div>
+
+  <div class="panel" id="settingsPanel" hidden>
+    <h2>聯盟設定</h2>
+    <div class="settings">
+      <label for="setTeams">隊數<input id="setTeams" type="number" min="4" max="20"></label>
+      <label for="setSlot">你的順位<input id="setSlot" type="number" min="1" max="20"></label>
+      <label for="setRounds">輪數<input id="setRounds" type="number" min="5" max="25"></label>
+    </div>
+    <div class="row">
+      <button id="saveSettings" class="primary" type="button">套用</button>
+      <span id="resetArea"><button id="reset" type="button">清除選秀紀錄</button></span>
+    </div>
+    <div class="hint">預設 12 隊、第 12 順位、13 輪。修改設定不會刪除已輸入的選秀紀錄。</div>
+  </div>
+
+  <div class="grid">
+    <div class="col">
+      <div class="panel">
+        <div class="entry">
+          <input id="q" type="search" placeholder="輸入被選走的球員（例如 Jokic、SGA、Wemby），按 Enter" autocomplete="off" aria-label="輸入被選走的球員">
+          <button id="addBtn" class="primary" type="button">記為被選走</button>
+          <div class="sugg" id="sugg" hidden></div>
+        </div>
+        <div class="editbar" id="editBar" hidden><span id="editMsg"></span><button id="editCancel" type="button">取消修改</button></div>
+        <div class="row">
+          <span class="hint" id="whoHint"></span>
+          <button id="togglePaste" type="button">一次貼上多人</button>
+        </div>
+        <div class="paste" id="pastePanel" hidden>
+          <textarea id="pasteBox" placeholder="把選秀頁面的已選名單整段貼上，或用逗號、換行分隔姓名。會依出現順序記錄。"></textarea>
+          <div class="row"><button id="pasteGo" class="primary" type="button">依序記錄</button><span class="hint" id="pasteMsg"></span></div>
+        </div>
+      </div>
+
+      <div class="panel" id="recPanel"></div>
+
+      <div class="panel">
+        <div class="rec-head"><h2>可選球員</h2><span class="hint" id="boardHint"></span></div>
+        <div class="filters">
+          <input id="filterQ" type="search" placeholder="篩選姓名 / 球隊" aria-label="篩選">
+          <select id="filterPos" aria-label="位置"><option value="">全部位置</option><option>PG</option><option>SG</option><option>SF</option><option>PF</option><option>C</option></select>
+        </div>
+        <div class="tablewrap"><table id="board"><thead></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="panel"><h2>你的陣容</h2><div class="slots" id="slots"></div></div>
+      <div class="panel"><h2>類別強弱</h2><div class="bars" id="bars"></div>
+        <div class="hint">勾選要 punt 的類別，推薦會重算。Each Category 計分建議最多 punt 1 類。</div>
+        <div class="punts" id="punts"></div></div>
+      <div class="panel"><h2>選秀紀錄</h2><div class="log" id="log"></div><div class="hint">「改」只換球員，順位不變。「刪」會移除那一手，之後的每一手往前移一格，所屬隊伍也跟著變，適合刪掉重複輸入的紀錄。</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PLAYERS = [{"n":"Nikola Jokic","t":"DEN","p":["C"],"g":70,"a":1,"r":"","k":0,"z":[2.1,2.82,3.02,1.69,0.02,0.07,2.98,0.53,-1.96]},{"n":"Victor Wembanyama","t":"SAS","p":["C"],"g":68,"a":2,"r":"","k":0,"z":[1.5,2.38,-0.29,0.41,5.42,1.29,0.21,0.42,-1.3]},{"n":"Shai Gilgeous-Alexander","t":"OKC","p":["PG","SG"],"g":74,"a":3,"r":"","k":0,"z":[2.69,-0.45,1.24,1.69,0.42,0.28,1.89,2.61,-0.23]},{"n":"Luka Doncic","t":"LAL","p":["PG","SG"],"g":66,"a":4,"r":"","k":0,"z":[2.89,0.86,2.25,2.01,-0.38,2.3,-0.47,-0.51,-2.63]},{"n":"Cade Cunningham","t":"DET","p":["PG","SG"],"g":72,"a":5,"r":"","k":0,"z":[1.6,-0.01,2.76,0.73,0.22,0.28,-0.72,0.65,-2.36]},{"n":"Jayson Tatum","t":"BOS","p":["SF","PF"],"g":60,"a":6,"r":"阿基里斯腱斷裂滿一年","k":1,"z":[1.5,1.08,0.73,-0.23,-0.18,1.29,-1.01,1.05,-0.76]},{"n":"Jalen Johnson","t":"ATL","p":["SF","PF"],"g":65,"a":7,"r":"出賽數是問號","k":1,"z":[0.91,1.73,1.75,1.05,0.22,-0.13,0.44,-0.26,-1.7]},{"n":"Cooper Flagg","t":"DAL","p":["SG","SF","PF"],"g":75,"a":8,"r":"","k":0,"z":[1.01,0.42,0.48,0.73,0.62,0.07,-0.08,0.05,-0.76]},{"n":"Anthony Edwards","t":"MIN","p":["SG","SF"],"g":78,"a":9,"r":"","k":0,"z":[2.2,-0.23,0.22,0.73,-0.18,1.8,-0.43,0.06,-1.3]},{"n":"Giannis Antetokounmpo","t":"MIA","p":["PF","C"],"g":65,"a":10,"r":"FT% 大拖油瓶","k":0,"z":[2.1,1.95,0.98,-0.55,0.62,-1.44,3.41,-5.27,-1.56]},{"n":"Scottie Barnes","t":"TOR","p":["SF","PF"],"g":78,"a":11,"r":"","k":0,"z":[0.51,0.64,0.98,1.05,1.42,-0.33,0.18,-0.2,-0.63]},{"n":"Tyrese Maxey","t":"PHI","p":["PG","SG"],"g":72,"a":12,"r":"","k":0,"z":[2.1,-0.67,1.24,2.65,-0.18,1.49,-0.78,1.84,-0.5]},{"n":"Donovan Mitchell","t":"CLE","p":["PG","SG"],"g":70,"a":13,"r":"","k":0,"z":[1.9,-0.67,0.73,1.37,-0.78,1.49,-0.41,1.14,-0.9]},{"n":"Kevin Durant","t":"HOU","p":["SF","PF"],"g":68,"a":14,"r":"快 38 歲，輪休風險","k":1,"z":[1.6,-0.23,-0.03,-0.87,0.62,0.58,1.05,1.21,-1.3]},{"n":"Karl-Anthony Towns","t":"NYK","p":["PF","C"],"g":72,"a":15,"r":"","k":0,"z":[1.2,2.6,-0.54,-0.87,-0.18,0.28,0.44,1.05,-1.03]},{"n":"Stephen Curry","t":"GSW","p":["PG"],"g":62,"a":16,"r":"年紀與出賽數","k":1,"z":[1.5,-0.88,0.73,0.09,-0.58,2.71,-0.63,1.83,-1.03]},{"n":"Tyrese Haliburton","t":"IND","p":["PG"],"g":62,"a":17,"r":"阿基里斯腱傷癒復出","k":1,"z":[0.11,-0.88,2.51,0.73,-0.18,1.09,-0.7,0.52,0.3]},{"n":"Austin Reaves","t":"LAL","p":["PG","SG"],"g":70,"a":18,"r":"","k":0,"z":[0.91,-0.67,0.73,0.09,-0.78,0.88,-0.07,1.45,-0.63]},{"n":"Amen Thompson","t":"HOU","p":["PG","SF"],"g":75,"a":19,"r":"","k":0,"z":[0.21,0.86,0.73,1.37,0.22,-1.44,1.07,-1.61,-0.63]},{"n":"Jamal Murray","t":"DEN","p":["PG","SG"],"g":74,"a":20,"r":"","k":0,"z":[1.4,-0.67,1.49,0.09,-0.58,1.49,-0.08,0.96,-0.36]},{"n":"LaMelo Ball","t":"MIN","p":["PG"],"g":58,"a":21,"r":"出賽數是問號","k":1,"z":[0.91,-0.23,1.49,0.73,-0.58,1.9,-2.18,0.7,-1.3]},{"n":"Alperen Sengun","t":"HOU","p":["C"],"g":75,"a":22,"r":"","k":0,"z":[0.61,1.51,0.98,0.41,0.42,-1.14,0.44,-1.61,-1.56]},{"n":"Anthony Davis","t":"WAS","p":["PF","C"],"g":55,"a":23,"r":"上季只打 20 場","k":1,"z":[1.3,2.16,-0.29,0.09,2.62,-1.24,1.05,-0.4,-0.23]},{"n":"Trae Young","t":"WAS","p":["PG"],"g":62,"a":24,"r":"","k":0,"z":[1.3,-1.32,3.02,0.09,-0.98,1.29,-1.78,1.81,-3.3]},{"n":"Trey Murphy III","t":"NOP","p":["SF","PF"],"g":72,"a":25,"r":"","k":0,"z":[0.81,-0.23,-0.29,1.37,-0.18,1.49,-0.07,1.23,0.3]},{"n":"Josh Giddey","t":"CHI","p":["PG","SG"],"g":72,"a":26,"r":"","k":0,"z":[-0.09,1.08,2.25,0.41,-0.38,0.07,-0.27,-0.23,-1.83]},{"n":"Lauri Markkanen","t":"UTA","p":["SF","PF"],"g":62,"a":27,"r":"","k":0,"z":[1.5,0.21,-1.05,-0.55,-0.38,1.29,-0.37,1.84,0.57]},{"n":"Brandon Miller","t":"CHA","p":["SG","SF"],"g":70,"a":28,"r":"","k":0,"z":[0.71,-0.45,-0.29,-0.23,0.22,1.39,-1.18,0.52,-0.5]},{"n":"Evan Mobley","t":"CLE","p":["PF","C"],"g":74,"a":29,"r":"","k":0,"z":[0.21,1.29,-0.29,-0.55,2.02,-0.94,1.04,-1.9,0.04]},{"n":"Chet Holmgren","t":"OKC","p":["PF","C"],"g":68,"a":30,"r":"股四頭肌痠痛，預計 10/20 回歸","k":1,"z":[0.11,1.25,-1.05,-0.87,2.62,-0.33,0.79,-0.1,0.57]},{"n":"James Harden","t":"CLE","p":["PG","SG"],"g":70,"a":31,"r":"","k":0,"z":[0.71,-0.23,2.0,0.41,-0.18,1.09,-1.53,1.69,-1.96]},{"n":"Jalen Williams","t":"OKC","p":["SG","SF"],"g":62,"a":32,"r":"上季腕傷＋腿後肌","k":1,"z":[0.51,-0.45,0.48,1.05,-0.18,-0.43,-0.07,0.03,-0.5]},{"n":"Devin Booker","t":"PHX","p":["PG","SG"],"g":72,"a":33,"r":"","k":0,"z":[1.6,-0.88,0.98,-0.55,-0.78,0.48,-0.39,1.78,-1.56]},{"n":"Domantas Sabonis","t":"SAC","p":["PF","C"],"g":58,"a":34,"r":"","k":0,"z":[0.21,2.82,0.98,-0.87,-0.58,-1.34,1.99,-0.56,-1.3]},{"n":"Bam Adebayo","t":"MIA","p":["C"],"g":74,"a":35,"r":"","k":0,"z":[0.41,1.73,-0.29,0.41,0.02,-0.33,-0.56,-0.49,-0.36]},{"n":"Jaren Jackson Jr.","t":"UTA","p":["PF","C"],"g":65,"a":36,"r":"","k":0,"z":[0.51,-0.01,-1.05,0.41,1.62,0.07,-0.07,0.05,0.04]},{"n":"Kawhi Leonard","t":"TOR","p":["SF","PF"],"g":62,"a":37,"r":"傷病史","k":1,"z":[1.7,-0.01,-0.29,2.33,-0.38,0.68,0.79,1.37,0.17]},{"n":"Deni Avdija","t":"POR","p":["SF","PF"],"g":72,"a":38,"r":"","k":0,"z":[1.1,0.42,1.24,-0.23,-0.38,0.07,-0.34,-0.17,-2.1]},{"n":"Walker Kessler","t":"LAL","p":["C"],"g":70,"a":39,"r":"","k":0,"z":[-1.28,2.16,-1.05,-1.19,3.02,-1.75,2.17,-0.97,1.37]},{"n":"Derrick White","t":"BOS","p":["PG","SG"],"g":76,"a":40,"r":"","k":0,"z":[-0.09,-0.67,0.48,0.41,1.02,1.09,-1.61,0.72,0.44]},{"n":"Jalen Brunson","t":"NYK","p":["PG"],"g":72,"a":41,"r":"","k":0,"z":[1.7,-1.1,1.39,-0.87,-0.98,0.58,-0.09,0.53,-0.5]},{"n":"Kyrie Irving","t":"DAL","p":["PG","SG"],"g":45,"a":42,"r":"34 歲 ACL 復出","k":1,"z":[1.1,-0.67,0.48,0.41,-0.58,1.09,-0.37,1.5,-0.36]},{"n":"Matas Buzelis","t":"CHI","p":["SF","PF"],"g":76,"a":43,"r":"","k":0,"z":[-0.09,0.21,-0.79,-0.23,1.62,0.48,-0.5,-0.2,0.3]},{"n":"Jaylen Brown","t":"PHI","p":["SG","SF"],"g":70,"a":44,"r":"","k":0,"z":[1.5,0.21,-0.03,0.09,-0.58,0.48,-0.09,-0.31,-1.7]},{"n":"Franz Wagner","t":"ORL","p":["SF","PF"],"g":65,"a":45,"r":"傷病讓他有折扣","k":1,"z":[0.71,-0.23,0.22,0.41,-0.78,-0.13,-0.08,0.45,0.04]},{"n":"Jalen Duren","t":"DET","p":["C"],"g":75,"a":46,"r":"","k":0,"z":[0.11,2.16,-0.79,-1.19,0.42,-1.75,2.84,-1.04,-0.23]},{"n":"Darius Garland","t":"LAC","p":["PG"],"g":60,"a":47,"r":"近期傷病","k":1,"z":[0.21,-1.32,1.24,0.41,-1.18,0.88,-0.52,0.73,-1.03]},{"n":"Onyeka Okongwu","t":"ATL","p":["PF","C"],"g":74,"a":48,"r":"","k":0,"z":[-0.38,0.86,-0.54,0.09,0.82,0.07,0.13,-0.43,0.7]},{"n":"Paolo Banchero","t":"ORL","p":["PF"],"g":68,"a":49,"r":"","k":0,"z":[1.1,1.08,0.48,-0.87,-0.18,-0.43,-0.67,-1.42,-1.3]},{"n":"Dejounte Murray","t":"NOP","p":["PG","SG"],"g":60,"a":50,"r":"阿基里斯腱傷癒復出","k":1,"z":[-0.09,-0.23,1.24,1.69,-0.58,0.07,-1.25,0.02,-0.76]},{"n":"Kon Knueppel","t":"CHA","p":["SG","SF"],"g":70,"a":51,"r":"腿後肌，開季可能缺陣","k":1,"z":[0.21,-0.45,-0.29,-0.55,-0.78,1.7,-0.29,0.92,0.17]},{"n":"Donovan Clingan","t":"POR","p":["C"],"g":75,"a":52,"r":"","k":0,"z":[-0.98,2.38,-1.05,-1.19,2.42,-1.34,0.7,-0.89,0.57]},{"n":"Michael Porter Jr.","t":"BKN","p":["SF","PF"],"g":65,"a":53,"r":"","k":0,"z":[1.1,0.42,-0.79,-0.55,-0.38,1.59,-0.08,0.15,0.17]},{"n":"LeBron James","t":"PHI","p":["SF","PF"],"g":58,"a":54,"r":"出賽數是問號","k":1,"z":[0.61,0.42,1.49,-0.23,-0.38,0.07,0.42,-0.76,-1.3]},{"n":"Nickeil Alexander-Walker","t":"ATL","p":["SG","SF"],"g":76,"a":55,"r":"","k":0,"z":[0.41,-0.88,-0.29,0.73,-0.18,1.49,-0.54,1.02,0.57]},{"n":"OG Anunoby","t":"NYK","p":["SF","PF"],"g":68,"a":56,"r":"","k":0,"z":[-0.19,-0.45,-1.05,1.69,0.02,0.58,-0.06,0.02,0.57]},{"n":"Desmond Bane","t":"ORL","p":["SG","SF"],"g":76,"a":57,"r":"","k":0,"z":[0.41,-0.67,-0.03,0.09,-0.58,0.68,-0.07,1.02,-0.23]},{"n":"Keyonte George","t":"UTA","p":["PG","SG"],"g":70,"a":58,"r":"","k":0,"z":[1.01,-0.88,0.98,-0.23,-0.78,1.09,-1.22,1.51,-1.43]},{"n":"Ryan Rollins","t":"MIL","p":["PG","SG"],"g":72,"a":59,"r":"","k":0,"z":[-0.09,-0.67,0.73,1.37,-0.58,0.48,-0.27,0.02,0.04]},{"n":"Tyler Herro","t":"MIL","p":["SG","PG"],"g":58,"a":60,"r":"","k":0,"z":[0.91,-0.45,0.22,-0.87,-0.98,1.49,-0.36,1.19,-0.5]},{"n":"Cameron Boozer","t":"MEM","p":["PF","C"],"g":72,"a":61,"r":"新秀","k":0,"z":[-0.19,1.08,-0.54,-0.23,0.22,-0.53,0.35,-0.63,0.04]},{"n":"Pascal Siakam","t":"IND","p":["SF","PF"],"g":72,"a":62,"r":"","k":0,"z":[0.91,0.21,-0.03,0.09,-0.58,-0.33,0.19,-1.15,-0.36]},{"n":"Stephon Castle","t":"SAS","p":["PG","SG"],"g":75,"a":63,"r":"","k":0,"z":[0.01,-0.23,1.49,0.09,-0.58,-0.74,-0.5,-0.95,-1.43]},{"n":"Zach Edey","t":"MEM","p":["C"],"g":55,"a":64,"r":"上季腳傷報銷","k":1,"z":[-0.78,2.16,-1.3,-1.83,2.42,-1.55,1.75,-0.97,0.57]},{"n":"Ivica Zubac","t":"IND","p":["C"],"g":70,"a":65,"r":"","k":0,"z":[-0.48,1.95,-0.79,-1.51,0.42,-1.75,2.1,-0.81,0.57]},{"n":"Joel Embiid","t":"PHI","p":["C"],"g":40,"a":66,"r":"缺賽多","k":1,"z":[1.3,1.08,-0.29,-1.19,0.62,-0.74,-0.08,1.57,-1.56]},{"n":"Julius Randle","t":"BKN","p":["PF"],"g":72,"a":67,"r":"","k":0,"z":[0.71,0.34,0.48,-0.87,-0.98,-0.13,-0.07,0.45,-0.9]},{"n":"Coby White","t":"CHA","p":["PG","SG"],"g":62,"a":68,"r":"小腿拉傷，開季不確定","k":1,"z":[0.21,-0.97,0.22,-1.19,-0.78,1.09,-1.01,0.82,0.04]},{"n":"Dyson Daniels","t":"ATL","p":["SG","SF"],"g":76,"a":69,"r":"","k":0,"z":[-0.88,0.34,0.98,3.93,-0.18,-1.34,-0.05,-0.88,-0.63]},{"n":"Jaden McDaniels","t":"MIN","p":["SF","PF"],"g":76,"a":70,"r":"","k":0,"z":[-0.48,-0.23,-1.05,0.09,0.62,-0.33,0.49,0.02,0.7]},{"n":"Ausar Thompson","t":"DET","p":["SG","SF"],"g":72,"a":71,"r":"","k":0,"z":[-1.18,-0.01,-0.54,2.65,0.42,-1.44,0.53,-1.51,0.7]},{"n":"Naz Reid","t":"CHA","p":["PF","C"],"g":76,"a":72,"r":"","k":0,"z":[-0.38,0.42,-0.79,-0.23,0.42,0.38,-0.45,-0.45,0.84]},{"n":"Kel'el Ware","t":"MIL","p":["C"],"g":72,"a":73,"r":"","k":0,"z":[-0.98,1.51,-1.3,-1.19,1.02,-0.53,0.55,-0.47,0.97]},{"n":"De'Aaron Fox","t":"SAS","p":["PG"],"g":65,"a":74,"r":"上季傷病","k":1,"z":[0.21,-0.88,1.09,0.73,-0.58,-0.13,-0.07,0.04,-0.36]},{"n":"Damian Lillard","t":"POR","p":["PG"],"g":55,"a":75,"r":"年紀、傷病、角色","k":1,"z":[0.51,-0.88,1.24,-0.55,-0.98,1.29,-1.29,2.24,-0.76]},{"n":"Caleb Wilson","t":"CHI","p":["PF"],"g":70,"a":76,"r":"新秀","k":0,"z":[-0.88,0.64,-1.05,-0.23,0.62,-1.24,0.9,-0.97,0.57]},{"n":"Dylan Harper","t":"SAS","p":["PG","SG"],"g":75,"a":77,"r":"","k":0,"z":[-0.48,-0.88,0.22,-0.23,-0.78,-0.43,-0.24,0.04,0.04]},{"n":"Alex Sarr","t":"WAS","p":["PF","C"],"g":68,"a":78,"r":"","k":0,"z":[-0.19,0.64,-0.79,-0.87,2.62,-0.43,-0.73,-0.97,0.04]},{"n":"Paul George","t":"BOS","p":["SF","PF"],"g":55,"a":79,"r":"缺賽累積","k":1,"z":[-0.19,-0.45,-0.29,1.37,-0.38,0.88,-1.12,0.52,-0.36]},{"n":"Mikal Bridges","t":"NYK","p":["SG","SF"],"g":80,"a":80,"r":"","k":0,"z":[-0.48,-0.88,-0.29,0.73,0.22,0.18,0.14,0.11,0.84]},{"n":"Ja Morant","t":"POR","p":["PG"],"g":50,"a":81,"r":"難保健康","k":1,"z":[0.41,-0.88,1.75,0.09,-0.78,-0.23,-1.63,-0.31,-1.83]},{"n":"Zion Williamson","t":"NOP","p":["PF"],"g":55,"a":82,"r":"","k":0,"z":[0.81,-0.23,-0.03,0.09,-0.38,-1.65,2.36,-2.26,-1.03]},{"n":"Ty Jerome","t":"MEM","p":["PG","SG"],"g":55,"a":83,"r":"上季只打 15 場","k":1,"z":[-0.19,-1.1,0.73,0.73,-0.98,0.88,-0.06,0.52,0.3]},{"n":"Payton Pritchard","t":"BOS","p":["PG","SG"],"g":78,"a":84,"r":"","k":0,"z":[-0.48,-0.97,0.48,-0.55,-1.18,1.09,-0.62,0.26,0.97]},{"n":"VJ Edgecombe","t":"PHI","p":["SG"],"g":75,"a":85,"r":"","k":0,"z":[-0.19,-0.23,-0.03,1.05,-0.18,0.38,-0.95,0.03,-0.36]},{"n":"Jalen Suggs","t":"ORL","p":["PG","SG"],"g":58,"a":86,"r":"健康是最大問題","k":1,"z":[-0.68,-0.88,0.73,2.33,-0.18,0.28,-1.0,0.02,0.04]},{"n":"Derik Queen","t":"NOP","p":["PF","C"],"g":72,"a":87,"r":"","k":0,"z":[-0.78,0.42,-0.18,-0.55,-0.18,-1.44,0.47,-0.9,-0.36]},{"n":"Josh Hart","t":"NYK","p":["SG","SF"],"g":68,"a":88,"r":"","k":0,"z":[-1.08,0.64,0.37,0.41,-0.78,-0.53,0.38,-0.51,0.3]},{"n":"Immanuel Quickley","t":"TOR","p":["PG","SG"],"g":70,"a":89,"r":"","k":0,"z":[-0.28,-0.67,0.48,-0.23,-0.98,0.78,-0.65,0.52,0.7]},{"n":"Cedric Coward","t":"MEM","p":["SG","SF"],"g":72,"a":90,"r":"","k":0,"z":[-0.68,-0.01,-0.79,-0.23,-0.18,-0.13,-0.23,0.35,0.84]},{"n":"Jarrett Allen","t":"CLE","p":["C"],"g":68,"a":91,"r":"","k":0,"z":[-0.68,1.08,-1.05,-0.87,0.42,-1.75,2.35,-0.87,1.1]},{"n":"Day'Ron Sharpe","t":"BKN","p":["C"],"g":70,"a":92,"r":"","k":0,"z":[-1.18,0.64,-1.05,-0.23,0.22,-1.55,1.47,-1.14,0.84]},{"n":"Rudy Gobert","t":"MIN","p":["C"],"g":74,"a":93,"r":"","k":0,"z":[-1.18,2.38,-1.15,-0.87,1.82,-1.75,2.17,-2.87,0.84]},{"n":"John Collins","t":"DET","p":["PF","C"],"g":70,"a":94,"r":"","k":0,"z":[-0.48,0.42,-1.3,-0.87,0.22,-0.33,0.64,0.23,1.1]},{"n":"CJ McCollum","t":"ATL","p":["PG","SG"],"g":68,"a":95,"r":"","k":0,"z":[0.11,-0.97,-0.08,-0.23,-0.78,0.88,-0.78,0.35,0.3]},{"n":"Darryn Peterson","t":"UTA","p":["PG","SG"],"g":70,"a":96,"r":"新秀","k":0,"z":[-0.09,-0.88,-0.03,0.09,-0.58,0.07,-0.98,0.04,-0.63]},{"n":"Darius Acuff Jr.","t":"SAC","p":["PG"],"g":72,"a":97,"r":"新秀","k":0,"z":[-0.48,-1.32,0.73,-0.23,-0.98,0.28,-1.12,0.03,-0.76]},{"n":"Ayo Dosunmu","t":"MIN","p":["PG","SG"],"g":72,"a":98,"r":"","k":0,"z":[-0.78,-0.88,-0.03,0.09,-0.78,-0.13,0.12,0.15,0.57]},{"n":"Ajay Mitchell","t":"OKC","p":["PG","SG"],"g":70,"a":99,"r":"","k":0,"z":[-0.68,-1.1,-0.13,0.09,-0.78,-0.43,-0.05,0.61,0.57]},{"n":"Andrew Wiggins","t":"MIA","p":["SG","SF"],"g":70,"a":100,"r":"","k":0,"z":[-0.4,-0.67,-0.79,0.09,0.22,0.07,-0.16,-0.39,0.84]},{"n":"AJ Dybantsa","t":"WAS","p":["SF"],"g":72,"a":101,"r":"新秀","k":0,"z":[-0.28,-0.23,-0.54,-0.23,-0.18,-0.74,-0.5,-0.78,-0.63]},{"n":"Keegan Murray","t":"SAC","p":["SF","PF"],"g":60,"a":102,"r":"上季只打 23 場","k":1,"z":[-0.58,0.21,-1.15,-0.23,0.62,0.07,-0.41,0.02,1.37]},{"n":"Myles Turner","t":"MIL","p":["C"],"g":72,"a":103,"r":"","k":0,"z":[-0.68,-0.23,-1.3,-1.19,2.22,0.28,-0.57,-0.14,0.97]},{"n":"Miles Bridges","t":"PHX","p":["SF","PF"],"g":72,"a":104,"r":"","k":0,"z":[-0.09,-0.01,-0.54,-0.87,-0.38,0.18,-0.5,0.19,0.3]},{"n":"Jakob Poeltl","t":"TOR","p":["C"],"g":55,"a":105,"r":"背傷，上季 46 場","k":1,"z":[-0.98,1.51,-0.79,-0.87,0.62,-1.75,1.83,-1.8,1.1]},{"n":"Jabari Smith Jr.","t":"HOU","p":["PF"],"g":77,"a":106,"r":"","k":0,"z":[-0.58,0.38,-1.3,-1.51,0.42,0.58,-0.6,0.19,1.37]},{"n":"Toumani Camara","t":"POR","p":["SF","PF"],"g":76,"a":107,"r":"","k":0,"z":[-1.08,-0.4,-0.79,0.09,-0.18,0.88,-0.49,-0.58,1.1]},{"n":"Nic Claxton","t":"CHI","p":["C"],"g":62,"a":108,"r":"腿後肌，開季不確定","k":1,"z":[-1.28,0.42,-0.18,-0.87,0.82,-1.65,1.1,-1.17,0.7]},{"n":"Collin Murray-Boyles","t":"TOR","p":["PF"],"g":70,"a":109,"r":"","k":0,"z":[-1.38,0.21,-1.05,0.41,0.22,-1.44,0.84,-1.22,1.1]},{"n":"Kevin Porter Jr.","t":"MIL","p":["PG","SG"],"g":55,"a":110,"r":"","k":0,"z":[-0.28,-0.67,1.49,1.69,-0.58,-0.53,-0.06,0.03,-1.16]},{"n":"Jaime Jaquez Jr.","t":"MIL","p":["SF","PF"],"g":72,"a":111,"r":"","k":0,"z":[-0.68,-0.23,-0.03,-0.55,-0.98,-1.14,0.3,-0.55,0.3]},{"n":"Norman Powell","t":"CHI","p":["SG","SF"],"g":65,"a":112,"r":"","k":0,"z":[0.71,-1.1,-0.95,-0.23,-0.78,0.99,-0.31,0.57,0.57]},{"n":"Jalen Green","t":"PHX","p":["SG"],"g":65,"a":113,"r":"","k":0,"z":[0.51,-0.67,-0.29,-0.55,-0.78,0.78,-1.37,0.34,-0.5]},{"n":"RJ Barrett","t":"TOR","p":["SG","SF"],"g":65,"a":114,"r":"","k":0,"z":[0.31,-0.23,-0.29,-1.51,-0.98,0.28,-0.07,-1.45,-0.23]},{"n":"DeMar DeRozan","t":"DEN","p":["SG","SF"],"g":72,"a":115,"r":"","k":0,"z":[-0.09,-1.1,-0.03,-0.87,-0.78,-1.14,0.15,1.21,0.84]},{"n":"Peyton Watson","t":"CLE","p":["SF","PF"],"g":72,"a":116,"r":"","k":0,"z":[-0.56,-0.45,-1.05,-0.55,0.82,-0.33,0.12,-0.81,0.97]},{"n":"Isaiah Hartenstein","t":"OKC","p":["C"],"g":58,"a":117,"r":"小腿問題","k":1,"z":[-1.47,1.29,-0.29,-0.87,0.42,-1.75,1.22,-0.48,0.7]},{"n":"Khaman Maluach","t":"PHX","p":["C"],"g":70,"a":118,"r":"Mark Williams 缺陣受惠","k":0,"z":[-1.57,0.64,-1.56,-1.83,1.82,-1.44,1.4,-0.64,1.24]},{"n":"Kyshawn George","t":"WAS","p":["SG","SF"],"g":70,"a":119,"r":"","k":0,"z":[-0.52,-0.4,0.22,-0.23,0.42,0.38,-0.85,-0.14,-0.23]},{"n":"Brandon Ingram","t":"LAC","p":["SF"],"g":35,"a":120,"r":"阿基里斯腱部分撕裂，最快 11/8 回歸","k":1,"z":[0.51,-0.23,-0.03,-0.87,-0.38,0.28,-0.34,0.7,-0.76]},{"n":"Tari Eason","t":"HOU","p":["SF","PF"],"g":68,"a":121,"r":"","k":0,"z":[-1.18,-0.01,-1.3,1.05,0.22,-0.53,-0.34,-0.64,1.1]},{"n":"Zach LaVine","t":"SAC","p":["SG"],"g":55,"a":122,"r":"三年缺 108 場","k":1,"z":[0.31,-0.88,-0.29,-0.87,-0.78,0.88,-0.07,0.61,0.04]},{"n":"Cason Wallace","t":"OKC","p":["PG","SG"],"g":78,"a":123,"r":"","k":0,"z":[-1.75,-1.1,-0.74,2.97,-0.38,-0.43,-0.36,0.01,1.37]},{"n":"Neemias Queta","t":"BOS","p":["C"],"g":76,"a":124,"r":"","k":0,"z":[-1.38,1.03,-1.3,-1.19,1.22,-1.75,1.84,-0.64,1.1]},{"n":"Fred VanVleet","t":"HOU","p":["PG"],"g":35,"a":125,"r":"ACL 撕裂","k":1,"z":[-0.68,-1.1,0.73,0.73,-0.58,0.68,-1.83,0.35,0.7]},{"n":"Anthony Black","t":"ORL","p":["PG","SG"],"g":72,"a":126,"r":"","k":0,"z":[-0.48,-0.88,-0.18,1.05,-0.38,-0.53,-0.43,-0.76,0.04]},{"n":"Brandin Podziemski","t":"GSW","p":["SG"],"g":78,"a":127,"r":"","k":0,"z":[-0.98,-0.4,-0.18,0.09,-0.98,-0.03,-0.54,0.01,0.57]},{"n":"Kristaps Porzingis","t":"GSW","p":["C"],"g":45,"a":128,"r":"健康問題，未參加訓練營","k":1,"z":[-0.28,0.21,-1.05,-1.19,1.22,0.28,-0.45,0.26,0.57]},{"n":"P.J. Washington","t":"DAL","p":["PF"],"g":72,"a":129,"r":"","k":0,"z":[-0.78,0.64,-1.05,-0.23,0.42,-0.03,-0.57,-0.51,1.1]},{"n":"Devin Vassell","t":"SAS","p":["SG","SF"],"g":72,"a":130,"r":"","k":0,"z":[-0.88,-0.88,-0.79,-0.23,-0.78,0.48,-0.74,0.01,1.37]},{"n":"Saddiq Bey","t":"NOP","p":["SF","PF"],"g":72,"a":131,"r":"","k":0,"z":[0.05,-0.19,-1.05,-0.87,-0.78,0.38,-0.7,0.61,1.5]},{"n":"Egor Demin","t":"BKN","p":["PG"],"g":72,"a":132,"r":"","k":0,"z":[-1.08,-0.88,0.48,-0.55,-0.38,0.07,-1.04,-0.23,-0.23]},{"n":"Jeremiah Fears","t":"NOP","p":["PG"],"g":72,"a":133,"r":"","k":0,"z":[-0.48,-1.1,-0.03,0.09,-0.98,-0.43,-1.08,0.7,-0.36]},{"n":"Yaxel Lendeborg","t":"GSW","p":["PF"],"g":72,"a":134,"r":"新秀","k":0,"z":[-1.28,0.21,-0.79,-0.23,0.62,-0.74,0.23,-0.51,1.1]},{"n":"Collin Gillespie","t":"PHX","p":["PG"],"g":80,"a":135,"r":"","k":0,"z":[-0.98,-1.1,0.27,-0.23,-0.98,1.19,-0.52,0.27,0.57]},{"n":"Reed Sheppard","t":"HOU","p":["PG","SG"],"g":75,"a":136,"r":"","k":0,"z":[-0.88,-1.32,-0.54,1.37,0.02,1.09,-0.87,0.08,0.84]},{"n":"Aaron Gordon","t":"DEN","p":["PF"],"g":55,"a":137,"r":"反覆受傷","k":1,"z":[-0.48,-0.23,-0.54,-1.19,-0.58,-0.13,0.61,0.03,0.84]},{"n":"Rui Hachimura","t":"LAC","p":["SF","PF"],"g":65,"a":138,"r":"Ingram 缺陣受惠","k":0,"z":[-0.68,-0.67,-1.4,-1.51,-0.58,-0.13,0.28,0.02,1.5]},{"n":"Quentin Grimes","t":"LAL","p":["SG"],"g":72,"a":139,"r":"","k":0,"z":[-0.78,-1.1,-0.79,-0.55,-0.78,0.28,-0.57,0.02,0.84]},{"n":"Davion Mitchell","t":"MIA","p":["PG"],"g":72,"a":140,"r":"","k":0,"z":[-1.47,-1.54,0.73,0.73,-0.98,-0.33,-0.31,-0.26,0.84]},{"n":"Sandro Mamukelashvili","t":"LAL","p":["PF","C"],"g":70,"a":141,"r":"","k":0,"z":[-1.38,-0.01,-1.05,-1.19,-0.18,-0.43,0.47,-0.31,1.37]},{"n":"Andrew Nembhard","t":"IND","p":["PG","SG"],"g":72,"a":142,"r":"","k":0,"z":[-0.68,-1.1,1.24,0.09,-0.78,-0.43,-0.22,0.19,0.04]},{"n":"Christian Braun","t":"DEN","p":["SG","SF"],"g":68,"a":143,"r":"上季受傷","k":1,"z":[-1.08,-0.53,-0.69,-0.55,-0.58,-0.74,0.24,-0.14,1.24]},{"n":"Daniel Gafford","t":"DAL","p":["C"],"g":62,"a":144,"r":"Lively 有傷","k":1,"z":[-1.28,0.42,-1.45,-1.51,1.82,-1.75,2.17,-1.36,1.24]},{"n":"Cameron Johnson","t":"DEN","p":["SF","PF"],"g":68,"a":145,"r":"","k":0,"z":[-0.98,-1.1,-1.05,-1.19,-0.78,0.58,-0.04,0.36,1.37]},{"n":"Isaiah Jackson","t":"LAC","p":["C"],"g":65,"a":146,"r":"","k":0,"z":[-1.57,0.21,-1.56,-0.55,1.02,-1.75,1.61,-0.97,1.5]},{"n":"Paul Reed","t":"DET","p":["PF","C"],"g":70,"a":147,"r":"","k":0,"z":[-1.77,-0.01,-1.3,0.09,0.42,-1.55,0.92,-0.48,1.5]},{"n":"Jrue Holiday","t":"POR","p":["PG","SG"],"g":62,"a":148,"r":"","k":0,"z":[-1.18,-0.67,0.22,-0.23,-0.58,0.07,-0.64,0.24,0.84]},{"n":"Mikel Brown","t":"BKN","p":["PG"],"g":60,"a":149,"r":"腳踝傷，季前賽未出賽","k":1,"z":[-0.88,-1.32,0.22,-0.55,-0.98,0.07,-1.57,0.19,-0.5]},{"n":"Gui Santos","t":"GSW","p":["SF"],"g":72,"a":150,"r":"","k":0,"z":[-1.67,-0.67,-1.05,-0.23,-0.58,-0.94,0.41,-0.23,1.5]},{"n":"Bennedict Mathurin","t":"NOP","p":["SG","SF"],"g":65,"a":151,"r":"","k":0,"z":[0.03,-0.67,-1.05,-0.87,-0.98,-0.13,-0.7,1.19,0.04]},{"n":"Grayson Allen","t":"CHA","p":["SG"],"g":65,"a":152,"r":"","k":0,"z":[-0.78,-1.32,-0.54,1.05,-0.78,1.39,-1.32,0.36,1.24]},{"n":"Jimmy Butler III","t":"GSW","p":["SF","PF"],"g":25,"a":153,"r":"ACL，預計 2027 年 1～2 月回歸","k":1,"z":[0.11,-0.23,0.48,1.05,-0.78,-1.14,0.34,1.22,0.7]}];
+const CATS=['PTS','REB','AST','ST','BLK','3PTM','FG%','FT%','TO'];
+const SLOTS=[['PG',['PG']],['SG',['SG']],['G',['PG','SG']],['SF',['SF']],['PF',['PF']],['F',['SF','PF']],['C',['C']],['C',['C']],['Util',null],['Util',null]];
+const ALIAS={'shai gilgeous-alexander':['sga','shai'],'victor wembanyama':['wemby','wemban'],'nikola jokic':['joker'],'karl-anthony towns':['kat'],'jaren jackson jr.':['jjj','jaren'],'anthony edwards':['ant','ant-man'],'giannis antetokounmpo':['giannis','greek freak'],'anthony davis':['ad'],'nickeil alexander-walker':['naw','nickeil'],'michael porter jr.':['mpj'],'og anunoby':['og'],'kevin durant':['kd'],'stephen curry':['steph'],'lebron james':['lebron','bron'],'damian lillard':['dame'],'kawhi leonard':['kawhi'],'jalen johnson':['jj'],'luka doncic':['luka'],'trey murphy iii':['tmiii','murphy'],'jayson tatum':['tatum'],'cade cunningham':['cade'],'chet holmgren':['chet'],'bam adebayo':['bam'],'kevin porter jr.':['kpj'],'jimmy butler iii':['jimmy butler','butler'],'cooper flagg':['flagg']};
+
+const norm=s=>s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[’']/g,'').replace(/[^a-z0-9 .-]/g,' ').replace(/\s+/g,' ').trim();
+PLAYERS.forEach((p,i)=>{p.id=i;p.key=norm(p.n);p.last=p.key.replace(/ (jr\.?|sr\.?|ii|iii|iv)$/,'').split(' ').pop();p.alias=(ALIAS[p.key]||[]).map(norm);p.av=Math.max(.55,Math.min(1,p.g/72));});
+const byId=new Map(PLAYERS.map(p=>[p.id,p]));
+const lastCount={};PLAYERS.forEach(p=>lastCount[p.last]=(lastCount[p.last]||0)+1);
+
+// ---------- state ----------
+const STORE='draft-room-v2';
+let state={teams:12,slot:12,rounds:13,picks:[],punt:[]};
+try{const s=JSON.parse(localStorage.getItem(STORE)||'null');if(s&&Array.isArray(s.picks))state=Object.assign(state,s);}catch(e){}
+const save=()=>{try{localStorage.setItem(STORE,JSON.stringify(state));}catch(e){}};
+
+const total=()=>state.teams*state.rounds;
+const teamAt=pick=>{const r=Math.ceil(pick/state.teams),i=(pick-1)%state.teams+1;return r%2?i:state.teams+1-i;};
+const myPicks=()=>{const a=[];for(let p=1;p<=total();p++)if(teamAt(p)===state.slot)a.push(p);return a;};
+const cur=()=>state.picks.length+1;
+const taken=()=>new Set(state.picks.filter(x=>x.id!=null).map(x=>x.id));
+const mine=()=>state.picks.map((x,i)=>({...x,pick:i+1})).filter(x=>teamAt(x.pick)===state.slot&&x.id!=null).map(x=>byId.get(x.id));
+const available=()=>{const t=taken();return PLAYERS.filter(p=>!t.has(p.id));};
+
+// ---------- roster fit ----------
+function matchCount(list){
+  const assign=new Array(SLOTS.length).fill(-1);
+  const ok=(p,s)=>!SLOTS[s][1]||p.p.some(x=>SLOTS[s][1].includes(x));
+  function tryP(i,seen){for(let s=0;s<SLOTS.length;s++){if(!ok(list[i],s)||seen[s])continue;seen[s]=true;if(assign[s]<0||tryP(assign[s],seen)){assign[s]=i;return true;}}return false;}
+  let n=0;for(let i=0;i<list.length;i++)if(tryP(i,[]))n++;
+  return {n,assign};
+}
+
+// ---------- scoring ----------
+function weights(roster){
+  const n=roster.length,w=[];
+  CATS.forEach((c,k)=>{
+    if(state.punt.includes(k)){w.push(0);return;}
+    let need=0;if(n>=2){const prof=roster.reduce((s,p)=>s+p.z[k]*p.av,0)/n;need=Math.max(-.2,Math.min(.35,-prof*.3));}
+    w.push(1+need);
+  });
+  return w;
+}
+const base=(p,w)=>p.z.reduce((s,z,k)=>s+w[k]*z,0)*p.av;
+const ftHole=p=>p.z[7]<-1.4;
+
+// picks I own starting now (back-to-back block) and the horizon after it
+function horizon(){
+  const c=cur(),mp=myPicks();
+  if(c>total())return {onMe:false,block:[],next:null,k:0};
+  const onMe=teamAt(c)===state.slot;
+  let block=[];
+  if(onMe){let p=c;while(p<=total()&&teamAt(p)===state.slot){block.push(p);p++;}}
+  else{const n=mp.find(p=>p>c);if(n){let p=n;while(p<=total()&&teamAt(p)===state.slot){block.push(p);p++;}}}
+  const end=block.length?block[block.length-1]:c;
+  const next=mp.find(p=>p>end)||null;
+  const startOthers=onMe?end+1:c;            // first pick by others we are measuring
+  const k=next?Math.max(0,next-startOthers-(onMe?0:block.length)):0;
+  return {onMe,block,next,k,toBlock:onMe?0:(block[0]-c)};
+}
+const Phi=x=>{const t=1/(1+.2316419*Math.abs(x)),d=.3989423*Math.exp(-x*x/2),pr=d*t*(.3193815+t*(-.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));return x>0?1-pr:pr;};
+function survival(avail,k){
+  const m=new Map();[...avail].sort((a,b)=>a.a-b.a).forEach((p,i)=>{const r=i+1,sd=Math.max(2.5,r*.22);m.set(p.id,1-Phi((k+.5-r)/sd));});
+  return m;
+}
+
+function expNext(cand,skip,h){
+  if(!h.next)return 0;
+  let e=0,left=1;
+  for(const x of cand){if(skip.has(x.p.id))continue;e+=left*x.sv*x.adj;left*=1-x.sv;if(left<.01)break;}
+  return e;
+}
+function scoreAll(){
+  const roster=mine(),avail=available(),w=weights(roster),h=horizon();
+  const myN=roster.length+1;                        // which of my picks this is
+  const riskN=roster.filter(p=>p.k).length;
+  const baseMatch=matchCount(roster).n;
+  const hasC=roster.some(p=>p.p.includes('C'));
+  const hasHole=roster.some(ftHole)&&!state.punt.includes(7);
+  // others' picks before my block, used to estimate who reaches my current block
+  const reach=h.onMe?null:survival(avail,h.toBlock||0);
+  const surv=survival(avail,h.k);
+  const out=avail.map(p=>{
+    const b=base(p,w),why=[];let s=b;
+    const sv=h.next?surv.get(p.id):0;
+    if(p.k){ if(riskN>=2){s-=1;why.push(['risk','已有 2 個風險球員']);} else if(myN<=2&&riskN>=1){s-=.6;why.push(['risk','前兩手已有風險球員']);} }
+    if(myN>=5){const m=matchCount([...roster,p]).n;if(m>baseMatch){s+=myN>=9?.6:.25;why.push(['fit','補先發位置']);}}
+    if(myN>=5&&!hasC&&p.p.includes('C')){s+=.5;why.push(['fit','還沒有 C']);}
+    if(hasHole&&ftHole(p)){s-=.4;why.push(['risk','第 2 個 FT% 黑洞']);}
+    return {p,b,adj:s,s,sv,reach:reach?reach.get(p.id):1,why};
+  });
+  // value now + expected best player still there at your next pick
+  const cand=[...out].sort((a,b)=>b.adj-a.adj).slice(0,30);
+  const eAll=expNext(cand,new Set(),h);
+  out.forEach(x=>{x.s=x.adj+(cand.includes(x)?expNext(cand,new Set([x.p.id]),h):eAll)-eAll;});
+  out.sort((a,b)=>b.s-a.s);
+  return {list:out,w,h,roster,myN};
+}
+
+// ---------- render ----------
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=(x,d=1)=>(x>=0?'+':'')+x.toFixed(d);
+const zc=z=>z>=1?'zp2':z>=.35?'zp1':z<=-1?'zn2':z<=-.35?'zn1':'';
+const pct=x=>Math.round(x*100)+'%';
+function survTag(sv,h){
+  if(!h.next)return '';
+  if(sv<.35)return `<span class="tag go">撐不到第 ${h.next} 手</span>`;
+  if(sv<.7)return `<span class="tag half">${pct(sv)} 撐到第 ${h.next} 手</span>`;
+  return `<span class="tag wait">可以等到第 ${h.next} 手</span>`;
+}
+function strengths(p){return p.z.map((z,k)=>[z,k]).filter(([z,k])=>!state.punt.includes(k)).sort((a,b)=>b[0]-a[0]).slice(0,3).map(([z,k])=>CATS[k]).join(' ');}
+
+let sortKey='s',sortDir=-1;
+function render(){
+  const {list,w,h,roster,myN}=scoreAll();
+  const c=cur(),done=c>total();
+  // clock
+  const r=Math.min(state.rounds,Math.ceil(c/state.teams));
+  let chips=`<span class="chip">第 <b>${done?total():c}</b> 手 · 第 <b>${r}</b> 輪</span>`;
+  if(done) chips+=`<span class="chip">選秀結束</span>`;
+  else if(h.onMe) chips+=`<span class="chip turn">輪到你${h.block.length>1?`（連選 ${h.block.length} 手）`:''}</span>`;
+  else chips+=`<span class="chip">輪到第 <b>${teamAt(c)}</b> 隊</span><span class="chip ${h.toBlock<=3?'soon':''}">再 <b>${h.toBlock}</b> 手輪到你（第 ${h.block.join('、')} 手）</span>`;
+  $('clock').innerHTML=chips;
+  $('whoHint').textContent=done?'':`這一手會記在${teamAt(c)===state.slot?'你':'第 '+teamAt(c)+' 隊'}名下。`;
+  $('addBtn').className=editIdx==null&&teamAt(c)===state.slot?'mine':'primary';
+  $('addBtn').textContent=editIdx!=null?`改成這位球員`:teamAt(c)===state.slot?'記為我選的':'記為被選走';
+
+  renderRec(list,h,roster,myN,done,w);
+  renderBoard(list,h);
+  renderSide(roster,w);
+  renderLog();
+  save();
+}
+
+function recRow(x,i,h){
+  const p=x.p;
+  const tags=[survTag(x.sv,h)];
+  if(!h.onMe&&x.reach<.5)tags.push(`<span class="tag">${x.reach<.05?'輪到你前多半已被選走':pct(x.reach)+' 機率輪得到你'}</span>`);
+  x.why.forEach(([k,t])=>tags.push(`<span class="tag ${k}">${esc(t)}</span>`));
+  if(p.r)tags.push(`<span class="tag ${p.k?'risk':''}">${esc(p.r)}</span>`);
+  return `<div class="rec ${i===0?'first':''}"><div class="idx">${i+1}</div>
+    <div style="min-width:0"><div class="nm">${esc(p.n)} <span class="hint">${p.p.join('/')} · ${p.t} · ADP ${p.a}</span></div>
+    <div class="meta"><span class="tag">強項 ${strengths(p)}</span>${tags.join('')}</div></div>
+    <button type="button" class="${h.onMe&&i===0?'mine':''}" data-pick="${p.id}">${teamAt(cur())===state.slot?'選他':'被選走'}</button></div>`;
+}
+function bestPair(list,roster,h){
+  const top=list.slice(0,8);let best=null;
+  for(let i=0;i<top.length;i++)for(let j=i+1;j<top.length;j++){
+    const a=top[i],b=top[j];
+    const w2=weights([...roster,a.p]),w3=weights([...roster,b.p]);
+    const pen=x=>x.adj-x.b;                 // fit and risk adjustments
+    const s1=a.adj+base(b.p,w2)+pen(b), s2=b.adj+base(a.p,w3)+pen(a);
+    const cand=[...list].sort((x,y)=>y.adj-x.adj).slice(0,30);
+    let s=Math.max(s1,s2)+expNext(cand,new Set([a.p.id,b.p.id]),h);
+    if(a.p.k&&b.p.k)s-=.8;
+    if(ftHole(a.p)&&ftHole(b.p)&&!state.punt.includes(7))s-=.6;
+    if(!best||s>best.s)best={a,b,s};
+  }
+  return best;
+}
+function renderRec(list,h,roster,myN,done,w){
+  const el=$('recPanel');
+  if(done){el.innerHTML='<h2>選秀結束</h2><div>祝你這季拿冠軍。</div>';return;}
+  const title=h.onMe?'現在選':`目前最佳人選（輪到你：第 ${h.block.join('、')} 手）`;
+  let html=`<div class="rec-head"><span class="big">${title}</span><span class="hint">你的第 ${myN} 手${h.next?` · 下一次是第 ${h.next} 手，中間隔 ${h.k} 手`:''}</span></div>`;
+  const pool=list;
+  const must=pool.slice(0,6);
+  if(h.block.length>=2&&roster.length+2<=state.rounds){
+    const bp=bestPair(pool,roster,h);
+    if(bp)html+=`<div class="pair">這兩手選：<b>${esc(bp.a.p.n)}</b> + <b>${esc(bp.b.p.n)}</b> <span class="hint">（考慮類別互補、風險，以及第 ${h.next||'-'} 手預期還拿得到誰）</span></div>`;
+  }
+  html+=`<div class="recs">${must.map((x,i)=>recRow(x,i,h)).join('')}</div>`;
+  const waiters=pool.filter(x=>h.next&&x.sv>=.7).slice(0,3);
+  if(waiters.length&&h.next)html+=`<div class="hint">第 ${h.next} 手可能還在：${waiters.map(x=>esc(x.p.n)).join('、')}</div>`;
+  const notes=[];
+  if(myN>=5&&!roster.some(p=>p.p.includes('C')))notes.push('你還沒有能打 C 的球員，C 很稀缺。');
+  if(roster.filter(p=>p.k).length>=2)notes.push('已有 2 個傷病或出賽數風險球員，之後盡量避開。');
+  if(myN>=8&&matchCount(roster).n<Math.min(10,roster.length))notes.push('有球員排不進先發位置，優先補缺的位置。');
+  if(notes.length)html+=notes.map(n=>`<div class="notice">${n}</div>`).join('');
+  el.innerHTML=html;
+}
+
+function renderBoard(list,h){
+  const fq=norm($('filterQ').value),fp=$('filterPos').value;
+  let rows=list.filter(x=>(!fq||x.p.key.includes(fq)||x.p.t.toLowerCase().includes(fq))&&(!fp||x.p.p.includes(fp)));
+  const val={s:x=>x.s,b:x=>x.b,a:x=>-x.p.a,sv:x=>x.sv,n:x=>x.p.n};
+  rows.sort((a,b)=>{const va=val[sortKey](a),vb=val[sortKey](b);return (va>vb?1:va<vb?-1:0)*sortDir;});
+  $('boardHint').textContent=`${list.length} 人可選，點表頭排序`;
+  const th=(k,l,cls='')=>`<th class="${cls}" data-sort="${k||''}">${l}${sortKey===k?(sortDir<0?' ▾':' ▴'):''}</th>`;
+  $('board').querySelector('thead').innerHTML=`<tr>${th('n','球員')}<th>位置</th>${th('s','推薦分','r')}${th('b','價值','r')}${th('a','ADP','r')}${th('sv','撐到下一手','r')}${CATS.map(c=>`<th class="r">${c}</th>`).join('')}<th>備註</th><th></th></tr>`;
+  $('board').querySelector('tbody').innerHTML=rows.slice(0,200).map(x=>{const p=x.p;return `<tr>
+    <td><b>${esc(p.n)}</b> <span class="hint">${p.t}</span></td><td>${p.p.join('/')}</td>
+    <td class="r num">${x.s.toFixed(1)}</td><td class="r num">${x.b.toFixed(1)}</td><td class="r num">${p.a}</td><td class="r num">${h.next?pct(x.sv):'-'}</td>
+    ${p.z.map((z,k)=>`<td class="r num"><span class="z ${state.punt.includes(k)?'':zc(z)}">${fmt(z)}</span></td>`).join('')}
+    <td class="hint">${esc(p.r||'')}</td><td><button type="button" data-pick="${p.id}">選走</button></td></tr>`;}).join('');
+}
+
+function renderSide(roster,w){
+  const {assign}=matchCount(roster);
+  const bySlot=SLOTS.map((s,i)=>assign[i]>=0?roster[assign[i]]:null);
+  const used=new Set(assign.filter(x=>x>=0));
+  const bench=roster.filter((p,i)=>!used.has(i));
+  let html=SLOTS.map((s,i)=>`<div class="s">${s[0]}</div><div class="p ${bySlot[i]?'':'empty'}">${bySlot[i]?esc(bySlot[i].n):'空'}</div>`).join('');
+  html+=bench.map(p=>`<div class="s">BN</div><div class="p">${esc(p.n)}</div>`).join('');
+  $('slots').innerHTML=html;
+  const n=Math.max(1,roster.length);
+  $('bars').innerHTML=CATS.map((c,k)=>{
+    const v=roster.reduce((s,p)=>s+p.z[k]*p.av,0)/n, pc=Math.max(-1.5,Math.min(1.5,v))/1.5*50;
+    const color=state.punt.includes(k)?'var(--line)':v>=0?'var(--good)':'var(--bad)';
+    const style=pc>=0?`left:50%;width:${pc}%`:`left:${50+pc}%;width:${-pc}%`;
+    return `<div class="bar"><span>${c}</span><div class="track"><i style="${style};background:${color}"></i></div><span class="num">${roster.length?fmt(v):'-'}</span></div>`;
+  }).join('');
+  $('punts').innerHTML=CATS.map((c,k)=>`<label for="punt${k}"><input id="punt${k}" type="checkbox" data-punt="${k}" ${state.punt.includes(k)?'checked':''}>${c}</label>`).join('');
+}
+
+function renderLog(){
+  $('log').innerHTML=state.picks.map((x,i)=>{const t=teamAt(i+1),me=t===state.slot;return `<div class="${me?'me':''} ${editIdx===i?'editing':''}"><span class="num">#${i+1}</span><span class="t">${me?'你':'第 '+t+' 隊'}</span><span>${esc(x.id!=null?byId.get(x.id).n:x.name)}</span><span class="acts"><button type="button" data-edit="${i}" aria-label="修改第 ${i+1} 手">改</button><button type="button" data-del="${i}" aria-label="刪除第 ${i+1} 手">刪</button></span></div>`;}).reverse().join('')||'<span class="hint">還沒有紀錄。每一手都要記，包括你自己選的。</span>';
+}
+
+// ---------- actions ----------
+let editIdx=null;
+function setEdit(i){
+  editIdx=i;
+  $('editBar').hidden=i==null;
+  if(i!=null){const x=state.picks[i];$('editMsg').textContent=`修改第 ${i+1} 手（${teamAt(i+1)===state.slot?'你':'第 '+teamAt(i+1)+' 隊'}，目前是 ${x.id!=null?byId.get(x.id).n:x.name}）：輸入正確的球員後按 Enter。`;$('q').focus();}
+  render();
+}
+function pick(id){
+  if(editIdx!=null){
+    const other=state.picks.findIndex((x,j)=>x.id===id&&j!==editIdx);
+    if(other>=0){$('editMsg').textContent=`${byId.get(id).n} 已經記在第 ${other+1} 手，請先修改那一手。`;return;}
+    state.picks[editIdx]={id};$('q').value='';hideSugg();setEdit(null);return;
+  }
+  if(cur()>total())return;if(taken().has(id))return;state.picks.push({id});$('q').value='';hideSugg();render();
+}
+function pickCustom(name){if(!name.trim())return;if(editIdx!=null){state.picks[editIdx]={id:null,name:name.trim()};$('q').value='';hideSugg();setEdit(null);return;}if(cur()>total())return;state.picks.push({id:null,name:name.trim()});$('q').value='';hideSugg();render();}
+
+function matches(q,limit=6){
+  const nq=norm(q);if(!nq)return [];
+  const t=taken();if(editIdx!=null&&state.picks[editIdx].id!=null)t.delete(state.picks[editIdx].id);
+  const sc=p=>{if(p.key===nq||p.alias.includes(nq))return 0;if(p.key.startsWith(nq)||p.alias.some(a=>a.startsWith(nq)))return 1;if(p.last.startsWith(nq))return 2;if(p.key.includes(nq))return 3;return 9;};
+  return PLAYERS.map(p=>[sc(p)+(t.has(p.id)?.5:0),p]).filter(x=>x[0]<9).sort((a,b)=>a[0]-b[0]||a[1].a-b[1].a).slice(0,limit).map(x=>x[1]);
+}
+let suggIdx=0,suggList=[];
+function showSugg(){
+  const t=taken();if(editIdx!=null&&state.picks[editIdx].id!=null)t.delete(state.picks[editIdx].id);
+  suggList=matches($('q').value);
+  const el=$('sugg');
+  if(!$('q').value.trim()){el.hidden=true;return;}
+  suggIdx=suggList.findIndex(p=>!t.has(p.id));
+  el.innerHTML=suggList.map((p,i)=>t.has(p.id)
+    ?`<div class="gone"><span>${esc(p.n)}</span><small>已記在第 ${state.picks.findIndex(x=>x.id===p.id)+1} 手</small></div>`
+    :`<div class="${i===suggIdx?'on':''}" data-pick="${p.id}"><span>${esc(p.n)}</span><small>${p.p.join('/')} · ${p.t} · ADP ${p.a}</small></div>`).join('')+`<div data-custom="1"><span>記為名單外球員：「${esc($('q').value.trim())}」</span><small>名單裡沒有時才選，用方向鍵或點擊</small></div>`;
+  suggList=suggList.filter(p=>!t.has(p.id));
+  el.hidden=false;
+}
+function hideSugg(){$('sugg').hidden=true;}
+$('q').addEventListener('input',showSugg);
+$('q').addEventListener('keydown',e=>{
+  const items=[...$('sugg').children];
+  const live=items.map((d,i)=>d.classList.contains('gone')?-1:i).filter(i=>i>=0);
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();if(!live.length)return;let j=live.indexOf(suggIdx);j=j<0?0:(j+(e.key==='ArrowDown'?1:-1)+live.length)%live.length;suggIdx=live[j];items.forEach((d,i)=>d.classList.toggle('on',i===suggIdx));}
+  else if(e.key==='Enter'){e.preventDefault();const it=items[suggIdx];if(!it)return;if(it.dataset.custom)pickCustom($('q').value);else pick(+it.dataset.pick);}
+  else if(e.key==='Escape'){hideSugg();if(editIdx!=null)setEdit(null);}
+});
+$('addBtn').addEventListener('click',()=>{if(suggList[0])pick(suggList[0].id);});
+document.addEventListener('click',e=>{
+  const ed=e.target.closest('[data-edit]');if(ed){setEdit(+ed.dataset.edit);return;}
+  const dl=e.target.closest('[data-del]');if(dl){state.picks.splice(+dl.dataset.del,1);setEdit(null);return;}
+  const b=e.target.closest('[data-pick]');if(b){pick(+b.dataset.pick);return;}
+  if(e.target.closest('[data-custom]')){pickCustom($('q').value);return;}
+  const s=e.target.closest('th[data-sort]');if(s&&s.dataset.sort){const k=s.dataset.sort;sortDir=sortKey===k?-sortDir:(k==='n'?1:-1);sortKey=k;render();return;}
+  if(!e.target.closest('.entry'))hideSugg();
+});
+document.addEventListener('change',e=>{const k=e.target.dataset&&e.target.dataset.punt;if(k!=null){const i=+k;state.punt=e.target.checked?[...state.punt,i]:state.punt.filter(x=>x!==i);render();}});
+$('undo').addEventListener('click',()=>{state.picks.pop();setEdit(null);});
+$('editCancel').addEventListener('click',()=>{$('q').value='';hideSugg();setEdit(null);});
+$('filterQ').addEventListener('input',render);
+$('filterPos').addEventListener('change',render);
+$('togglePaste').addEventListener('click',()=>{$('pastePanel').hidden=!$('pastePanel').hidden;if(!$('pastePanel').hidden)$('pasteBox').focus();});
+
+function parsePaste(text){
+  const t=norm(text),found=[],t0=taken();
+  PLAYERS.forEach(p=>{
+    if(t0.has(p.id))return;
+    const keys=[p.key,...p.alias.filter(a=>a.length>=3)];
+    if(lastCount[p.last]===1&&p.last.length>=4)keys.push(p.last);
+    let best=-1;
+    for(const k of keys){const re=new RegExp('(^|[^a-z])'+k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![a-z])');const m=re.exec(t);if(m&&(best<0||m.index<best))best=m.index;}
+    if(best>=0)found.push([best,p]);
+  });
+  return found.sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
+}
+$('pasteGo').addEventListener('click',()=>{
+  const ps=parsePaste($('pasteBox').value);
+  let n=0;for(const p of ps){if(cur()>total())break;state.picks.push({id:p.id});n++;}
+  $('pasteMsg').textContent=n?`記錄了 ${n} 人：${ps.slice(0,n).map(p=>p.n).join('、')}`:'沒有找到名單裡的球員，請確認姓名。';
+  if(n)$('pasteBox').value='';
+  render();
+});
+
+// settings
+function fillSettings(){$('setTeams').value=state.teams;$('setSlot').value=state.slot;$('setRounds').value=state.rounds;}
+$('toggleSettings').addEventListener('click',()=>{$('settingsPanel').hidden=!$('settingsPanel').hidden;fillSettings();});
+$('saveSettings').addEventListener('click',()=>{
+  const t=Math.max(4,Math.min(20,+$('setTeams').value||12)),s=Math.max(1,Math.min(t,+$('setSlot').value||t)),r=Math.max(5,Math.min(25,+$('setRounds').value||13));
+  Object.assign(state,{teams:t,slot:s,rounds:r});fillSettings();render();
+});
+function bindReset(){$('reset').addEventListener('click',()=>{
+  $('resetArea').innerHTML='<span class="row"><span class="hint">清除全部選秀紀錄？</span><button id="resetYes" class="primary" type="button">確定清除</button><button id="resetNo" type="button">取消</button></span>';
+  $('resetYes').addEventListener('click',()=>{state.picks=[];state.punt=[];restore();render();});
+  $('resetNo').addEventListener('click',restore);
+});}
+function restore(){$('resetArea').innerHTML='<button id="reset" type="button">清除選秀紀錄</button>';bindReset();}
+bindReset();
+render();
+</script>
