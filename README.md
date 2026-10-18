@@ -48,6 +48,10 @@ open nba-fantasy-toolkit/draft/index.html
 
 During the draft, log every pick (yours and other teams') as it happens. The recommendation card, survival odds and team-need weights update after each one. Use *重新開始* (reset) to clear the draft.
 
+### Claude Code skill
+
+[`.claude/skills/draft/`](.claude/skills/draft/) is a [Claude Code](https://claude.com/claude-code) skill for the same draft. It has must-pick players, rankings by position, and rules for choosing between several available players. Open Claude Code in this repo, run `/draft`, and report picks as they happen. Player rankings are in [`references/rankings-2026-27.md`](.claude/skills/draft/references/rankings-2026-27.md). To update for a new season, replace that file; the rules in `SKILL.md` stay the same.
+
 ## Roadmap
 
 - **Lineup:** pick daily starters from your roster around games played and slot eligibility.
