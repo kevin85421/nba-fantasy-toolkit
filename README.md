@@ -50,7 +50,7 @@ During the draft, log every pick (yours and other teams') as it happens. The rec
 
 ### Claude Code skill
 
-[`.claude/skills/draft/`](.claude/skills/draft/) is a [Claude Code](https://claude.com/claude-code) skill for the same draft. It has must-pick players, rankings by position, and rules for choosing between several available players. Open Claude Code in this repo, run `/draft`, and report picks as they happen. Player rankings are in [`references/rankings-2026-27.md`](.claude/skills/draft/references/rankings-2026-27.md). To update for a new season, replace that file; the rules in `SKILL.md` stay the same.
+[`.claude/skills/draft/`](.claude/skills/draft/) is a [Claude Code](https://claude.com/claude-code) skill for the same draft. It has must-pick players, rankings by position, and rules for choosing between several available players. Open Claude Code in this repo, run `/draft`, and report picks as they happen. Player rankings are in [`references/rankings-2026-27.md`](.claude/skills/draft/references/rankings-2026-27.md), dated at the top. You can also give Claude a link to a Claude Docs copy of the rankings, and it will read that instead. To update for a new season, replace the rankings; the rules in `SKILL.md` stay the same.
 
 ## Roadmap
 
