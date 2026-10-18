@@ -270,11 +270,26 @@ function scoreAll(){
   // others' picks before my block, used to estimate who reaches my current block
   const reach=h.onMe?null:survival(avail,h.toBlock||0);
   const surv=survival(avail,h.k);
+  // which single-position starter slots are still empty, and how many good players are left at each position
+  const {assign}=matchCount(roster);
+  const emptyPos=new Set(SLOTS.map((s,i)=>assign[i]<0&&s[1]&&s[1].length===1?s[1][0]:null).filter(Boolean));
+  const topLeft={};[...avail].sort((a,b)=>base(b,w)-base(a,w)).slice(0,40).forEach(p=>p.p.forEach(x=>topLeft[x]=(topLeft[x]||0)+1));
   const out=avail.map(p=>{
     const b=base(p,w),why=[];let s=b;
     const sv=h.next?surv.get(p.id):0;
     if(p.k){ if(riskN>=2){s-=1;why.push(['risk','已有 2 個風險球員']);} else if(myN<=2&&riskN>=1){s-=.6;why.push(['risk','前兩手已有風險球員']);} }
-    if(myN>=5){const m=matchCount([...roster,p]).n;if(m>baseMatch){s+=myN>=9?.6:.25;why.push(['fit','補先發位置']);}}
+    if(myN>=5){
+      const m=matchCount([...roster,p]).n;
+      if(m>baseMatch){s+=myN>=9?.6:.25;why.push(['fit','補先發位置']);}
+      else{
+        // goes to the bench: worse the more teammates already share his positions
+        const dup=roster.filter(q=>q.p.some(x=>p.p.includes(x))).length;
+        const pen=Math.min(1,.2+.15*Math.max(0,dup-2));
+        s-=pen;why.push(['risk',`只能進板凳（同位置已有 ${dup} 人）`]);
+      }
+      const scarce=p.p.filter(x=>x!=='C'&&emptyPos.has(x)&&(topLeft[x]||0)<=4);
+      if(scarce.length){s+=.3;why.push(['fit',`${scarce.join('/')} 好球員快沒了`]);}
+    }
     if(myN>=5&&!hasC&&p.p.includes('C')){s+=.5;why.push(['fit','還沒有 C']);}
     if(hasHole&&ftHole(p)){s-=.4;why.push(['risk','第 2 個 FT% 黑洞']);}
     return {p,b,adj:s,s,sv,reach:reach?reach.get(p.id):1,why};
